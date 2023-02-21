@@ -18,7 +18,7 @@ This implementation is only meant for educational purposes. It is not an officia
 	- Copy the generated Client Secret (You may need to regenerate the client secret).
 2. Clone this repository and download dependencies:
 	```shell
-	git clone <repo_url>
+	git clone https://github.com/sampathsris/ifs-cloud-app-proto.git
 	cd ifs-cloud-app-proto
 	pnpm install
 	# or
@@ -28,10 +28,10 @@ This implementation is only meant for educational purposes. It is not an officia
 	```
 3. Create a `.env` file in the root of the repository:
 	```shell
-	IFS_SYSTEM_URL=<System URL of the IFS Cloud Instance>
-	IFS_NAMESPACE=<Name of the IFS Customer Namespace>
-	CLIENT_ID=<Previously copied Client ID>
-	CLIENT_SECRET=<Previously copied Cliet Secret>
+	IFS_SYSTEM_URL=#System URL of the IFS Cloud Instance
+	IFS_NAMESPACE=#Name of the IFS Customer Namespace
+	CLIENT_ID=#Previously copied Client ID
+	CLIENT_SECRET=#Previously copied Cliet Secret
 	
 	# Use this only if there is a self-signed certificate in the chain
 	# Warning: Using this in production systems will probably create a
