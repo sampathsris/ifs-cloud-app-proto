@@ -22,8 +22,8 @@ const client_id = process.env.CLIENT_ID;
 const client_secret = process.env.CLIENT_SECRET;
 
 const appCallbackUrl = urlcat(app_host, '/login/callback');
-const issuerUrl = urlcat(ifs_system_url, '/auth/realms/:customerNamespace', {
-  customerNamespace: ifs_namespace
+const issuerUrl = urlcat(ifs_system_url, '/auth/realms/:ifs_namespace', {
+  ifs_namespace
 });
 
 async function start() {
@@ -50,11 +50,11 @@ async function start() {
   app.use(passport.session());
 
   passport.serializeUser((user, done) => {
-    // console.log(JSON.stringify(user, null, 2));
+    console.log(JSON.stringify(user, null, 2));
     done(null, user);
   });
   passport.deserializeUser((user, done) => {
-    // console.log(JSON.stringify(user, null, 2));
+    console.log(JSON.stringify(user, null, 2));
     done(null, user);
   });
 
@@ -62,7 +62,7 @@ async function start() {
   let client = new oidcIssuer.Client({
     client_id,
     client_secret,
-    redirect_uris: [ appCallbackUrl ],
+    redirect_uris: [appCallbackUrl],
     response_types: ['code'],
   });
 
@@ -74,7 +74,7 @@ async function start() {
         pasReqToCallback: true,
       },
       (tokenSet, userinfo, done) => {
-        // console.log('Verifying ODIC Strategy', { tokenSet, userinfo });
+        console.log('Verifying ODIC Strategy', { tokenSet, userinfo });
         return done(null, { tokenSet, userinfo });
       }
     ));
