@@ -139,6 +139,10 @@ passport.use(
       console.log('--------------------------------------');
       console.log(userinfo);
       console.log('--------------------------------------');
+      console.log(chalk.cyan('claims'))
+      console.log('--------------------------------------');
+      console.log(tokenSet.claims());
+      console.log('--------------------------------------');
 
       // Save the required information in the session
       return done(null, {
@@ -149,18 +153,26 @@ passport.use(
   ),
 );
 
+/**
+ * This function simply sends a redirect to the user for a given path,
+ * but at the same time prints the redirect to the console.
+ */
+const verboseRedirect = (res, path) => {
+  console.log(
+    chalk.magenta('redirecting to'),
+    chalk.yellow(path),
+  );
+
+  return res.redirect(path);
+};
+
 // Login
 app.get(
   '/login',
   (req, res, next) => {
     // If already authenticated, redirect to Homepage
     if (req.isAuthenticated()) {
-      console.log(
-        chalk.magenta('redirecting to'),
-        chalk.yellow('/'),
-      );
-
-      return res.redirect('/');
+      return verboseRedirect(res, '/');
     }
 
     console.log(
@@ -211,12 +223,7 @@ app.get(
   '/user',
   (req, res) => {
     if (!req.isAuthenticated()) {
-      console.log(
-        chalk.magenta('redirecting to'),
-        chalk.yellow('/'),
-      );
-
-      return res.redirect('/');
+      return verboseRedirect(res, '/');
     }
 
     const user = req.session.passport.user.userinfo.preferred_username;
@@ -234,12 +241,7 @@ app.get(
   (req, res, next) => {
     // If not authenticated, redirect to Homepage
     if (!req.isAuthenticated()) {
-      console.log(
-        chalk.magenta('redirecting to'),
-        chalk.yellow('/'),
-      );
-
-      return res.redirect('/');
+      return verboseRedirect(res, '/');
     }
 
     /**
@@ -253,10 +255,11 @@ app.get(
      * It also requires a redirect url after the Identity Provider logs
      * the user out. We will redirect to homepage.
      */
-    res.redirect(client.endSessionUrl({
+    const end_session_url = client.endSessionUrl({
       id_token_hint: req.user.tokenSet.id_token,
       post_logout_redirect_uri: app_host,
-    }));
+    });
+    verboseRedirect(res, end_session_url);
 
     /**
      * We also need to logout from passport. Even though we destroyed
