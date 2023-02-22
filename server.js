@@ -1,12 +1,15 @@
 
-const express = require('express');
-const session = require('express-session');
-const http = require('http');
-const passport = require('passport');
-const { Issuer, Strategy } = require('openid-client');
+import express from 'express';
+import session from 'express-session';
+import http from 'http';
+import passport from 'passport';
+import { Issuer, Strategy } from 'openid-client';
 
 // `urlcat` is used to safely construct URLs. See https://github.com/balazsbotond/urlcat
-const urlcat = require('urlcat').default;
+import urlcat from 'urlcat';
+
+// `chalk` is for pretty text in the console
+import chalk from 'chalk';
 
 /**
  * Certain values are (sometimes optionally) constructed from certain
@@ -40,247 +43,240 @@ const issuerUrl = urlcat(ifs_system_url, '/auth/realms/:ifs_namespace', {
   ifs_namespace
 });
 
-async function start() {
-  // `chalk` is for pretty text in the console
-  const { default: chalk } = await import('chalk');
+// Create an Express.js app
+const app = express();
 
-  // Create an Express.js app
-  const app = express();
+// Create a session to preserve login status and user info
+app.use(session({
+  secret: session_secret,
+  resave: false,
+  saveUninitialized: false,
+}));
 
-  // Create a session to preserve login status and user info
-  app.use(session({
-    secret: session_secret,
-    resave: false,
-    saveUninitialized: false,
-  }));
+// Initialize Passport.js
+app.use(passport.initialize());
 
-  // Initialize Passport.js
-  app.use(passport.initialize());
+// `passport.session()` middleware saves the user in the request object
+app.use(passport.session());
 
-  // `passport.session()` middleware saves the user in the request object
-  app.use(passport.session());
-
-  /**
-   * This middleware is just for verbosity. It will display server requests
-   * and the authentication status at the time of the request. Otherwise,
-   * this is unnecessary.
-   */
-  app.use((req, _res, next) => {
-    console.log(
-      chalk.green(req.method),
-      chalk.yellow(req.originalUrl),
-      req.isAuthenticated()
-        ? chalk.green('Authenticated')
-        : chalk.red('Not Authenticated')
-    );
-    next();
-  });
-
-  /**
-   * Once Passport.js authenticates the user, user claims will be stored
-   * in the session, and we can extract the username.
-   */
-  passport.serializeUser((userinfo, done) => {
-    console.log(chalk.cyan('Serialized User Info'));
-    console.log('--------------------------------------');
-    console.log(userinfo);
-    console.log('--------------------------------------');
-    done(null, userinfo);
-  });
-  passport.deserializeUser((userinfo, done) => {
-    console.log(chalk.cyan('Deserialized User Info'));
-    console.log('--------------------------------------');
-    console.log(userinfo);
-    console.log('--------------------------------------');
-    done(null, userinfo);
-  });
-
-  // Create an OpenID Connect Issuer object with the issuer URL
+/**
+ * This middleware is just for verbosity. It will display server requests
+ * and the authentication status at the time of the request. Otherwise,
+ * this is unnecessary.
+ */
+app.use((req, _res, next) => {
   console.log(
-    chalk.blue('Discovering OpenID Configuration using issuer'),
-    chalk.magenta(issuerUrl),
+    chalk.green(req.method),
+    chalk.yellow(req.originalUrl),
+    req.isAuthenticated()
+      ? chalk.green('Authenticated')
+      : chalk.red('Not Authenticated')
   );
-  const oidcIssuer = await Issuer.discover(issuerUrl);
-  console.log(chalk.cyan('Discovered OpenID Configuration'))
+  next();
+});
+
+/**
+ * Once Passport.js authenticates the user, user claims will be stored
+ * in the session, and we can extract the username.
+ */
+passport.serializeUser((userinfo, done) => {
+  console.log(chalk.cyan('Serialized User Info'));
   console.log('--------------------------------------');
-  console.log(oidcIssuer.metadata);
+  console.log(userinfo);
   console.log('--------------------------------------');
+  done(null, userinfo);
+});
+passport.deserializeUser((userinfo, done) => {
+  console.log(chalk.cyan('Deserialized User Info'));
+  console.log('--------------------------------------');
+  console.log(userinfo);
+  console.log('--------------------------------------');
+  done(null, userinfo);
+});
 
-  // Create an OpenID Client object using the issuer
-  let client = new oidcIssuer.Client({
-    client_id,
-    client_secret,
-    redirect_uris: [appCallbackUrl],
-    response_types: ['code'],
-  });
+// Create an OpenID Connect Issuer object with the issuer URL
+console.log(
+  chalk.blue('Discovering OpenID Configuration using issuer'),
+  chalk.magenta(issuerUrl),
+);
+const oidcIssuer = await Issuer.discover(issuerUrl);
+console.log(chalk.cyan('Discovered OpenID Configuration'))
+console.log('--------------------------------------');
+console.log(oidcIssuer.metadata);
+console.log('--------------------------------------');
 
-  /**
-   * Create ODIC middleware to handle the authorization flow.
-   * 
-   * After the flow is finished, the verify function (which is
-   * passed as the 2nd parameter when creating the Strategy object
-   * below) receives objects containing the tokens and user info.
-   */
-  passport.use(
-    'odic',
-    new Strategy(
-      {
-        client,
-        pasReqToCallback: true,
-      },
-      (tokenSet, userinfo, done) => {
-        console.log(chalk.cyan('Verifying ODIC Strategy'))
+// Create an OpenID Client object using the issuer
+let client = new oidcIssuer.Client({
+  client_id,
+  client_secret,
+  redirect_uris: [appCallbackUrl],
+  response_types: ['code'],
+});
 
-        console.log('--------------------------------------');
-        console.log(chalk.cyan('tokenSet'))
-        console.log('--------------------------------------');
-        console.log(tokenSet);
-        console.log('--------------------------------------');
-        console.log(chalk.cyan('userinfo'))
-        console.log('--------------------------------------');
-        console.log(userinfo);
-        console.log('--------------------------------------');
-
-        // Save the required information in the session
-        return done(null, {
-          tokenSet,
-          userinfo,
-        });
-      },
-    ),
-  );
-
-  // Login
-  app.get(
-    '/login',
-    (req, res, next) => {
-      // If already authenticated, redirect to Homepage
-      if (req.isAuthenticated()) {
-        console.log(
-          chalk.magenta('redirecting to'),
-          chalk.yellow('/'),
-        );
-
-        return res.redirect('/');
-      }
-
-      console.log(
-        chalk.magenta('redirecting to'),
-        chalk.yellow(client.authorizationUrl()),
-      );
-
-      next();
+/**
+ * Create ODIC middleware to handle the authorization flow.
+ * 
+ * After the flow is finished, the verify function (which is
+ * passed as the 2nd parameter when creating the Strategy object
+ * below) receives objects containing the tokens and user info.
+ */
+passport.use(
+  'odic',
+  new Strategy(
+    {
+      client,
+      pasReqToCallback: true,
     },
+    (tokenSet, userinfo, done) => {
+      console.log(chalk.cyan('Verifying ODIC Strategy'))
 
-    /**
-     * This middleware initiates the authentication flow. It will redirect
-     * the user to the authorization endpoints of the identity provider.
-     */
-    passport.authenticate('odic', {
-      scope: 'openid',
-    }),
-  );
+      console.log('--------------------------------------');
+      console.log(chalk.cyan('tokenSet'))
+      console.log('--------------------------------------');
+      console.log(tokenSet);
+      console.log('--------------------------------------');
+      console.log(chalk.cyan('userinfo'))
+      console.log('--------------------------------------');
+      console.log(userinfo);
+      console.log('--------------------------------------');
 
-  /**
-   * This is where the redirect from identity provider will be
-   * redirected. Depending on the parameters, passport can decide
-   * whether authentication succeeded or not. Then the handler
-   * will redirect accoring to `successRedirect` and `failureRedirect`.
-   */
-  app.get(
-    '/login/callback',
-    passport.authenticate('odic', {
-      successRedirect: '/user',
-      failureRedirect: '/',
-    }),
-  );
-
-  // Homepage
-  app.get(
-    '/',
-    (req, res) => {
-      if (req.isAuthenticated()) {
-        res.send('<a href="/logout">Log Out</a>');
-      } else {
-        res.send('<a href="/login">Log In</a>');
-      }
-    },
-  );
-
-  // User page
-  app.get(
-    '/user',
-    (req, res) => {
-      if (!req.isAuthenticated()) {
-        console.log(
-          chalk.magenta('redirecting to'),
-          chalk.yellow('/'),
-        );
-
-        return res.redirect('/');
-      }
-
-      const user = req.session.passport.user.preferred_username;
-      res.header('Content-Type', 'text/html');
-      res.send(
-        `<a href="/">Home</a>
-        <br />
-        Logged in as ${user}.`);
-    },
-  );
-
-  // Logout
-  app.get(
-    '/logout',
-    (req, res, next) => {
-      // If not authenticated, redirect to Homepage
-      if (!req.isAuthenticated()) {
-        console.log(
-          chalk.magenta('redirecting to'),
-          chalk.yellow('/'),
-        );
-
-        return res.redirect('/');
-      }
-
-      /**
-       * Construct the OpenID end session URL using `client.endSessionUrl`.
-       * The URL needs an id_token_hint, which should be a previously used
-       * id_token. We can explicitly pass an id_token, or otherwise, 
-       * `client.endSessionUrl` can find it from a token set. We previously
-       * saved the token set in the session in the ODIC verifier function.
-       * We can now retrieve the token set from the session.
-       * 
-       * It also requires a redirect url after the Identity Provider logs
-       * the user out. We will redirect to homepage.
-       */
-      res.redirect(client.endSessionUrl({
-        id_token_hint: req.user.tokenSet.id_token,
-        post_logout_redirect_uri: app_host,
-      }));
-
-      /**
-       * We also need to logout from passport. Even though we destroyed
-       * our session with Identity Provider, passport does not know this.
-       * Logging out from passport will clear req.user and destron the
-       * Express.js session.
-       */
-      req.logout(err => {
-        if (err) {
-          console.error(chalk.red('Error destroying passport session'));
-          console.error(err);
-          
-          return next(err);
-        }
+      // Save the required information in the session
+      return done(null, {
+        tokenSet,
+        userinfo,
       });
     },
-  );
+  ),
+);
 
-  const httpServer = http.createServer(app);
+// Login
+app.get(
+  '/login',
+  (req, res, next) => {
+    // If already authenticated, redirect to Homepage
+    if (req.isAuthenticated()) {
+      console.log(
+        chalk.magenta('redirecting to'),
+        chalk.yellow('/'),
+      );
 
-  httpServer.listen(port, () => {
-    console.log(chalk.bold.blue(`HTTP Server running on port ${port}`));
-  });
-}
+      return res.redirect('/');
+    }
 
-start();
+    console.log(
+      chalk.magenta('redirecting to'),
+      chalk.yellow(client.authorizationUrl()),
+    );
+
+    next();
+  },
+
+  /**
+   * This middleware initiates the authentication flow. It will redirect
+   * the user to the authorization endpoints of the identity provider.
+   */
+  passport.authenticate('odic', {
+    scope: 'openid',
+  }),
+);
+
+/**
+ * This is where the redirect from identity provider will be
+ * redirected. Depending on the parameters, passport can decide
+ * whether authentication succeeded or not. Then the handler
+ * will redirect accoring to `successRedirect` and `failureRedirect`.
+ */
+app.get(
+  '/login/callback',
+  passport.authenticate('odic', {
+    successRedirect: '/user',
+    failureRedirect: '/',
+  }),
+);
+
+// Homepage
+app.get(
+  '/',
+  (req, res) => {
+    if (req.isAuthenticated()) {
+      res.send('<a href="/logout">Log Out</a>');
+    } else {
+      res.send('<a href="/login">Log In</a>');
+    }
+  },
+);
+
+// User page
+app.get(
+  '/user',
+  (req, res) => {
+    if (!req.isAuthenticated()) {
+      console.log(
+        chalk.magenta('redirecting to'),
+        chalk.yellow('/'),
+      );
+
+      return res.redirect('/');
+    }
+
+    const user = req.session.passport.user.userinfo.preferred_username;
+    res.header('Content-Type', 'text/html');
+    res.send(
+      `<a href="/">Home</a>
+        <br />
+        Logged in as ${user}.`);
+  },
+);
+
+// Logout
+app.get(
+  '/logout',
+  (req, res, next) => {
+    // If not authenticated, redirect to Homepage
+    if (!req.isAuthenticated()) {
+      console.log(
+        chalk.magenta('redirecting to'),
+        chalk.yellow('/'),
+      );
+
+      return res.redirect('/');
+    }
+
+    /**
+     * Construct the OpenID end session URL using `client.endSessionUrl`.
+     * The URL needs an id_token_hint, which should be a previously used
+     * id_token. We can explicitly pass an id_token, or otherwise, 
+     * `client.endSessionUrl` can find it from a token set. We previously
+     * saved the token set in the session in the ODIC verifier function.
+     * We can now retrieve the token set from the session.
+     * 
+     * It also requires a redirect url after the Identity Provider logs
+     * the user out. We will redirect to homepage.
+     */
+    res.redirect(client.endSessionUrl({
+      id_token_hint: req.user.tokenSet.id_token,
+      post_logout_redirect_uri: app_host,
+    }));
+
+    /**
+     * We also need to logout from passport. Even though we destroyed
+     * our session with Identity Provider, passport does not know this.
+     * Logging out from passport will clear req.user and destron the
+     * Express.js session.
+     */
+    req.logout(err => {
+      if (err) {
+        console.error(chalk.red('Error destroying passport session'));
+        console.error(err);
+
+        return next(err);
+      }
+    });
+  },
+);
+
+const httpServer = http.createServer(app);
+
+httpServer.listen(port, () => {
+  console.log(chalk.bold.blue(`HTTP Server running on port ${port}`));
+});

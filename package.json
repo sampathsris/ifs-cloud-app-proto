@@ -2,8 +2,11 @@
   "name": "ifs-cloud-app-proto",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "type": "module",
   "exports": "./server.js",
+  "engines": {
+    "node": ">=14.16"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon -r dotenv/config server.js"
