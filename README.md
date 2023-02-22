@@ -6,6 +6,11 @@ An [Express.js](https://expressjs.com/) app that authenticates with an [IFS Clou
 
 This implementation is only meant for educational purposes. It is not an official impelemntation. The implementation details of the underlying system may change without notice.
 
+## Requirements
+
+1. An IFS Cloud instantce that you have admin access to.
+2. [Node.js](https://nodejs.org/) version `>=14.16` to run the app.
+
 ## How to Use
 
 1. Create an IAM Client:
@@ -32,7 +37,7 @@ This implementation is only meant for educational purposes. It is not an officia
 	IFS_NAMESPACE=# Name of the IFS Customer Namespace
 	CLIENT_ID=# Previously copied Client ID
 	CLIENT_SECRET=# Previously copied Cliet Secret
-  SESSION_SECRET=# A random string
+	SESSION_SECRET=# A random string
 	
 	# Use this only if there is a self-signed certificate in the chain
 	# Warning: Using this in production systems will probably create a
