@@ -41,6 +41,9 @@ const issuerUrl = urlcat(ifs_system_url, '/auth/realms/:ifs_namespace', {
 });
 
 async function start() {
+  // `chalk` is for pretty text in the console
+  const { default: chalk } = await import('chalk');
+
   // Create an Express.js app
   const app = express();
 
@@ -58,22 +61,50 @@ async function start() {
   app.use(passport.session());
 
   /**
+   * This middleware is just for verbosity. It will display server requests
+   * and the authentication status at the time of the request. Otherwise,
+   * this is unnecessary.
+   */
+  app.use((req, _res, next) => {
+    console.log(
+      chalk.green(req.method),
+      chalk.yellow(req.originalUrl),
+      req.isAuthenticated()
+        ? chalk.green('Authenticated')
+        : chalk.red('Not Authenticated')
+    );
+    next();
+  });
+
+  /**
    * Once Passport.js authenticates the user, user claims will be stored
    * in the session, and we can extract the username.
    */
   passport.serializeUser((userinfo, done) => {
-    console.log('Serialize', JSON.stringify(userinfo, null, 2));
+    console.log(chalk.cyan('Serialized User Info'));
+    console.log('--------------------------------------');
+    console.log(userinfo);
+    console.log('--------------------------------------');
     done(null, userinfo);
   });
-  passport.deserializeUser((user, done) => {
-    console.log('Deserialize', JSON.stringify(user, null, 2));
-    done(null, user);
+  passport.deserializeUser((userinfo, done) => {
+    console.log(chalk.cyan('Deserialized User Info'));
+    console.log('--------------------------------------');
+    console.log(userinfo);
+    console.log('--------------------------------------');
+    done(null, userinfo);
   });
 
   // Create an OpenID Connect Issuer object with the issuer URL
-  console.log('Discovering OpenID Configuration using issuer', issuerUrl);
+  console.log(
+    chalk.blue('Discovering OpenID Configuration using issuer'),
+    chalk.magenta(issuerUrl),
+  );
   const oidcIssuer = await Issuer.discover(issuerUrl);
-  console.log('Discovered:', oidcIssuer.metadata);
+  console.log(chalk.cyan('Discovered OpenID Configuration'))
+  console.log('--------------------------------------');
+  console.log(oidcIssuer.metadata);
+  console.log('--------------------------------------');
 
   // Create an OpenID Client object using the issuer
   let client = new oidcIssuer.Client({
@@ -98,16 +129,23 @@ async function start() {
         pasReqToCallback: true,
       },
       (tokenSet, userinfo, done) => {
-        const allInfo = {
-          tokenSet,
-          userinfo,
-          claims: tokenSet.claims(),
-        };
+        console.log(chalk.cyan('Verifying ODIC Strategy'))
 
-        console.log('Verifying ODIC Strategy', allInfo);
+        console.log('--------------------------------------');
+        console.log(chalk.cyan('tokenSet'))
+        console.log('--------------------------------------');
+        console.log(tokenSet);
+        console.log('--------------------------------------');
+        console.log(chalk.cyan('userinfo'))
+        console.log('--------------------------------------');
+        console.log(userinfo);
+        console.log('--------------------------------------');
 
         // Save the required information in the session
-        return done(null, allInfo);
+        return done(null, {
+          tokenSet,
+          userinfo,
+        });
       },
     ),
   );
@@ -116,42 +154,41 @@ async function start() {
   app.get(
     '/login',
     (req, res, next) => {
-      console.log('/login');
-
       // If already authenticated, redirect to Homepage
       if (req.isAuthenticated()) {
-        console.log('redirecting to /');
+        console.log(
+          chalk.magenta('redirecting to'),
+          chalk.yellow('/'),
+        );
+
         return res.redirect('/');
       }
-      
+
+      console.log(
+        chalk.magenta('redirecting to'),
+        chalk.yellow(client.authorizationUrl()),
+      );
+
       next();
     },
 
-    // This middleware initiates the login flow
+    /**
+     * This middleware initiates the authentication flow. It will redirect
+     * the user to the authorization endpoints of the identity provider.
+     */
     passport.authenticate('odic', {
       scope: 'openid',
     }),
   );
 
+  /**
+   * This is where the redirect from identity provider will be
+   * redirected. Depending on the parameters, passport can decide
+   * whether authentication succeeded or not. Then the handler
+   * will redirect accoring to `successRedirect` and `failureRedirect`.
+   */
   app.get(
     '/login/callback',
-    (_req, _res, next) => {
-      /**
-       * This handler is really not needed. It's just there to
-       * detect and print the /login/callback route in console. The
-       * actual work is done by the middleware from
-       * `passport.atuhenticate` call below.
-       */
-      console.log('/login/callback');
-      next();
-    },
-
-    /**
-     * This is where the redirect from identity provider will be
-     * redirected. Depending on the parameters, passport can decide
-     * whether authentication succeeded or not. Then the handler
-     * will redirect accoring to `successRedirect` and `failureRedirect`.
-     */
     passport.authenticate('odic', {
       successRedirect: '/user',
       failureRedirect: '/',
@@ -162,8 +199,6 @@ async function start() {
   app.get(
     '/',
     (req, res) => {
-      console.log('/');
-
       if (req.isAuthenticated()) {
         res.send('<a href="/logout">Log Out</a>');
       } else {
@@ -176,10 +211,12 @@ async function start() {
   app.get(
     '/user',
     (req, res) => {
-      console.log('/user');
-
       if (!req.isAuthenticated()) {
-        console.log('redirecting to /');
+        console.log(
+          chalk.magenta('redirecting to'),
+          chalk.yellow('/'),
+        );
+
         return res.redirect('/');
       }
 
@@ -196,11 +233,13 @@ async function start() {
   app.get(
     '/logout',
     (req, res, next) => {
-      console.log('/logout');
-
       // If not authenticated, redirect to Homepage
       if (!req.isAuthenticated()) {
-        console.log('redirecting to /');
+        console.log(
+          chalk.magenta('redirecting to'),
+          chalk.yellow('/'),
+        );
+
         return res.redirect('/');
       }
 
@@ -219,7 +258,7 @@ async function start() {
         id_token_hint: req.user.tokenSet.id_token,
         post_logout_redirect_uri: app_host,
       }));
-      
+
       /**
        * We also need to logout from passport. Even though we destroyed
        * our session with Identity Provider, passport does not know this.
@@ -228,6 +267,9 @@ async function start() {
        */
       req.logout(err => {
         if (err) {
+          console.error(chalk.red('Error destroying passport session'));
+          console.error(err);
+          
           return next(err);
         }
       });
@@ -237,7 +279,7 @@ async function start() {
   const httpServer = http.createServer(app);
 
   httpServer.listen(port, () => {
-    console.log(`HTTP Server running on port ${port}`);
+    console.log(chalk.bold.blue(`HTTP Server running on port ${port}`));
   });
 }
 
