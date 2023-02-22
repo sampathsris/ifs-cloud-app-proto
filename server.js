@@ -5,7 +5,6 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const http = require('http');
 const passport = require('passport');
-const helmet = require('helmet');
 const { Issuer, Strategy } = require('openid-client');
 const urlcat = require('urlcat').default;
 
@@ -43,8 +42,6 @@ async function start() {
     resave: false,
     saveUninitialized: true,
   }));
-
-  app.use(helmet());
 
   app.use(passport.initialize());
   app.use(passport.session());
