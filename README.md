@@ -28,10 +28,11 @@ This implementation is only meant for educational purposes. It is not an officia
 	```
 3. Create a `.env` file in the root of the repository:
 	```shell
-	IFS_SYSTEM_URL=#System URL of the IFS Cloud Instance
-	IFS_NAMESPACE=#Name of the IFS Customer Namespace
-	CLIENT_ID=#Previously copied Client ID
-	CLIENT_SECRET=#Previously copied Cliet Secret
+	IFS_SYSTEM_URL=# System URL of the IFS Cloud Instance
+	IFS_NAMESPACE=# Name of the IFS Customer Namespace
+	CLIENT_ID=# Previously copied Client ID
+	CLIENT_SECRET=# Previously copied Cliet Secret
+  SESSION_SECRET=# A random string
 	
 	# Use this only if there is a self-signed certificate in the chain
 	# Warning: Using this in production systems will probably create a
