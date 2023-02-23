@@ -113,22 +113,24 @@ let client = new oidcIssuer.Client({
   response_types: ['code'],
 });
 
+const PASSPORT_STRATEGY_NAME = 'oidc';
+
 /**
- * Create ODIC middleware to handle the authorization flow.
+ * Create OIDC middleware to handle the authorization flow.
  * 
  * After the flow is finished, the verify function (which is
  * passed as the 2nd parameter when creating the Strategy object
  * below) receives objects containing the tokens and user info.
  */
 passport.use(
-  'odic',
+  PASSPORT_STRATEGY_NAME,
   new Strategy(
     {
       client,
       pasReqToCallback: true,
     },
     (tokenSet, userinfo, done) => {
-      console.log(chalk.cyan('Verifying ODIC Strategy'))
+      console.log(chalk.cyan('Verifying OIDC Strategy'))
 
       console.log('--------------------------------------');
       console.log(chalk.cyan('tokenSet'))
@@ -166,15 +168,29 @@ const verboseRedirect = (res, path) => {
   return res.redirect(path);
 };
 
+/**
+ * Routes.
+ */
+const APP_ROUTE_ROOT = '/';
+const APP_ROUTE_LOGIN = '/login';
+const APP_ROUTE_LOGIN_CALLBACK = '/login/callback';
+const APP_ROUTE_USER = '/user';
+const APP_ROUTE_LOGOUT = '/logout';
+
 // Login
 app.get(
-  '/login',
+  APP_ROUTE_LOGIN,
   (req, res, next) => {
     // If already authenticated, redirect to Homepage
     if (req.isAuthenticated()) {
-      return verboseRedirect(res, '/');
+      return verboseRedirect(res, APP_ROUTE_ROOT);
     }
 
+    /**
+     * We are not actually redirecting to authorization URL. But under
+     * the hood, the passport middleware will be doing that. This is
+     * just for verbosity.
+     */
     console.log(
       chalk.magenta('redirecting to'),
       chalk.yellow(client.authorizationUrl()),
@@ -187,7 +203,7 @@ app.get(
    * This middleware initiates the authentication flow. It will redirect
    * the user to the authorization endpoints of the identity provider.
    */
-  passport.authenticate('odic', {
+  passport.authenticate(PASSPORT_STRATEGY_NAME, {
     scope: 'openid',
   }),
 );
@@ -199,37 +215,38 @@ app.get(
  * will redirect accoring to `successRedirect` and `failureRedirect`.
  */
 app.get(
-  '/login/callback',
-  passport.authenticate('odic', {
-    successRedirect: '/user',
-    failureRedirect: '/',
+  APP_ROUTE_LOGIN_CALLBACK,
+  passport.authenticate(PASSPORT_STRATEGY_NAME, {
+    successRedirect: APP_ROUTE_USER,
+    failureRedirect: APP_ROUTE_ROOT,
   }),
 );
 
 // Homepage
 app.get(
-  '/',
+  APP_ROUTE_ROOT,
   (req, res) => {
     if (req.isAuthenticated()) {
-      res.send('<a href="/logout">Log Out</a>');
+      res.send(`<a href="${APP_ROUTE_LOGOUT}">Log Out</a>`);
     } else {
-      res.send('<a href="/login">Log In</a>');
+      res.send(`<a href="${APP_ROUTE_LOGIN}">Log In</a>`);
     }
   },
 );
 
 // User page
 app.get(
-  '/user',
+  APP_ROUTE_USER,
   (req, res) => {
     if (!req.isAuthenticated()) {
-      return verboseRedirect(res, '/');
+      return verboseRedirect(res, APP_ROUTE_ROOT);
     }
 
-    const user = req.session.passport.user.userinfo.preferred_username;
+    const user = req.user.userinfo.preferred_username;
+
     res.header('Content-Type', 'text/html');
     res.send(
-      `<a href="/">Home</a>
+      `<a href="${APP_ROUTE_ROOT}">Home</a>
         <br />
         Logged in as ${user}.`);
   },
@@ -237,11 +254,11 @@ app.get(
 
 // Logout
 app.get(
-  '/logout',
+  APP_ROUTE_LOGOUT,
   (req, res, next) => {
     // If not authenticated, redirect to Homepage
     if (!req.isAuthenticated()) {
-      return verboseRedirect(res, '/');
+      return verboseRedirect(res, APP_ROUTE_ROOT);
     }
 
     /**
@@ -249,7 +266,7 @@ app.get(
      * The URL needs an id_token_hint, which should be a previously used
      * id_token. We can explicitly pass an id_token, or otherwise, 
      * `client.endSessionUrl` can find it from a token set. We previously
-     * saved the token set in the session in the ODIC verifier function.
+     * saved the token set in the session in the OIDC verifier function.
      * We can now retrieve the token set from the session.
      * 
      * It also requires a redirect url after the Identity Provider logs
