@@ -26,10 +26,19 @@ const session_secret = process.env.SESSION_SECRET ||
   'replace_this_with_a_proper_and_secure_secret';
 
 /**
+ * Routes.
+ */
+const APP_ROUTE_ROOT = '/';
+const APP_ROUTE_LOGIN = '/login';
+const APP_ROUTE_LOGIN_CALLBACK = '/login/callback';
+const APP_ROUTE_USER = '/user';
+const APP_ROUTE_LOGOUT = '/logout';
+
+/**
  * Identity provider needs to redirect the client back to the app after
  * authentication is performed. `appCallbackUrl` is for that purpose.
  */
-const appCallbackUrl = urlcat(app_host, '/login/callback');
+const appCallbackUrl = urlcat(app_host, APP_ROUTE_LOGIN_CALLBACK);
 
 /**
  * Everything starts with the issuer URL. Knowing the issuer URL allows
@@ -168,15 +177,6 @@ const verboseRedirect = (res, path) => {
   return res.redirect(path);
 };
 
-/**
- * Routes.
- */
-const APP_ROUTE_ROOT = '/';
-const APP_ROUTE_LOGIN = '/login';
-const APP_ROUTE_LOGIN_CALLBACK = '/login/callback';
-const APP_ROUTE_USER = '/user';
-const APP_ROUTE_LOGOUT = '/logout';
-
 // Login
 app.get(
   APP_ROUTE_LOGIN,
@@ -281,7 +281,7 @@ app.get(
     /**
      * We also need to logout from passport. Even though we destroyed
      * our session with Identity Provider, passport does not know this.
-     * Logging out from passport will clear req.user and destron the
+     * Logging out from passport will clear req.user and destroy the
      * Express.js session.
      */
     req.logout(err => {
