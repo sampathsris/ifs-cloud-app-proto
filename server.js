@@ -155,7 +155,14 @@ passport.use(
       console.log(tokenSet.claims());
       console.log('--------------------------------------');
 
-      // Save the required information in the session
+      /**
+       * This sort of says that the result of authentication is
+       * the TokenSet and the UserInfo. This result will eventually
+       * be passed to `passport.serialize` (declared above). There,
+       * we chose to save all this information in the session. The
+       * result is, we will be able to get token information and
+       * user information from any route from this point onwards.
+       */
       return done(null, {
         tokenSet,
         userinfo,
@@ -237,18 +244,72 @@ app.get(
 // User page
 app.get(
   APP_ROUTE_USER,
-  (req, res) => {
+  async (req, res) => {
     if (!req.isAuthenticated()) {
       return verboseRedirect(res, APP_ROUTE_ROOT);
     }
 
-    const user = req.user.userinfo.preferred_username;
+    /**
+     * We can use the user information and token information
+     * saved in the session.
+     */
+    const user = req.user.userinfo.upn;
+
+    /**
+     * The following should create a URL in the form of:
+     *   https://acme.ifs.cloud/main/ifsapplications/projection/v1/UserHandling.svc/Users('USERID')?$select=Description
+     * 
+     * Using this URL and an access token, we should be able to send an HTTP
+     * request to the IFS instance, which will treat it as an authenticated
+     * request (due to the presence of the token), and reply us back with the
+     * user's description. Of course, this requires that user we're logged in
+     * with has permissions (at the least, read only) to the projection
+     * `Userhandling.svc`.
+     */
+    const userResourcePath = `/main/ifsapplications/projection/v1/UserHandling.svc/Users('${
+      // For `UserHandling.svc`, user names need to be uppercase.
+      user.toUpperCase()
+    }')`;
+    const userResourceUrl = urlcat(
+      ifs_system_url,
+      userResourcePath,
+      { '$select': 'Description' },
+    );
+
+    // We can get the access token from the session
+    const accessToken = req.user.tokenSet.access_token;
+
+    console.log(
+      chalk.blue('Requesting resource'),
+      chalk.yellow(userResourceUrl),
+      chalk.green(accessToken),
+    );
+
+    /**
+     * Client.requestResource will send a request to the provided URL
+     * along with the access token. It returns (a Promise that contains)
+     * the result of the call in the `body` property, as a Buffer (a
+     * binary object that contains some data).
+     */
+    const { body: userResourceBody } = await client.requestResource(
+      userResourceUrl,
+      accessToken,
+    );
+
+    /**
+     * The buffer with the user data needs to be converted to a string
+     * before we can use it. The result will be a JSON string, which then
+     * has to be parsed.
+     */
+    const userResource = JSON.parse(userResourceBody.toString('utf8'));
+    console.log(userResource);
 
     res.header('Content-Type', 'text/html');
-    res.send(
-      `<a href="${APP_ROUTE_ROOT}">Home</a>
-        <br />
-        Logged in as ${user}.`);
+    res.send(`
+      <a href="${APP_ROUTE_ROOT}">Home</a>
+      <br />
+      <p>Logged in as ${user} (${userResource.Description})<p>.
+    `);
   },
 );
 
