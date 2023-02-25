@@ -308,7 +308,7 @@ app.get(
     res.send(`
       <a href="${APP_ROUTE_ROOT}">Home</a>
       <br />
-      <p>Logged in as ${user} (${userResource.Description})<p>.
+      <p>Logged in as ${user} (${userResource.Description})</p>.
     `);
   },
 );
