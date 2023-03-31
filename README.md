@@ -4,7 +4,7 @@ An [Express.js](https://expressjs.com/) app that authenticates with an [IFS Clou
 
 ## Disclaimer
 
-This implementation is only meant for educational purposes. It is not an official impelemntation. The implementation details of the underlying system may change without notice.
+This implementation is only meant for educational purposes. It is not an official implemntation. The implementation details of the underlying system may change without notice.
 
 ## Requirements
 
